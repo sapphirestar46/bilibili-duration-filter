@@ -1,0 +1,13 @@
+{
+  "name": "bddf-tools",
+  "private": true,
+  "version": "1.0.0",
+  "description": "本地验证工具：用已安装的 Chrome 无头渲染 demo 并截图（不下载浏览器）",
+  "type": "module",
+  "scripts": {
+    "install-browser-tool": "npm install"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
+  }
+}

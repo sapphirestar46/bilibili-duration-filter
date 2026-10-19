@@ -1,0 +1,22 @@
+{
+  "name": "bilibili-dynamic-duration-filter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "B站动态首页视频时长筛选（Tampermonkey 用户脚本）— jsdom 集成测试",
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\"",
+    "test:parse": "node --test tests/parse.test.mjs",
+    "test:filter": "node --test tests/filter.test.mjs",
+    "test:lifecycle": "node --test tests/lifecycle.test.mjs"
+  },
+  "keywords": [
+    "tampermonkey",
+    "userscript",
+    "bilibili",
+    "jsdom"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}
