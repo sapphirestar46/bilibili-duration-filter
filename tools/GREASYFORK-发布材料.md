@@ -9,7 +9,7 @@
 **不要**上传整个仓库，只需上传单个 `.user.js`。
 
 - 本地路径：`D:\dsh\bilibili\bilibili-dynamic-duration-filter.user.js`
-- 在线地址（可直接粘进 GreasyFork 的「从 URL 导入」）：
+- 在线地址（分享给别人直接安装用）：
   ```
   https://raw.githubusercontent.com/sapphirestar46/bilibili-duration-filter/master/bilibili-dynamic-duration-filter.user.js
   ```
@@ -115,12 +115,24 @@ https://github.com/sapphirestar46/bilibili-duration-filter
 
 ## 四、操作步骤
 
-1. 打开 <https://greasyfork.org/zh-CN/users/sign_in>，用 GitHub 账号登录（你没有 GreasyFork 账号的话，直接选「Sign in with GitHub」最快）。
-2. 登录后访问 <https://greasyfork.org/zh-CN/script_versions/new>。
-3. 选择「从 URL 导入」（Import from URL），粘贴第一节里的 raw 地址，让 GreasyFork 自动读取元数据。
-   - 若导入失败，改选「直接输入代码」，把 `.user.js` 全文粘进去。
-4. 核对自动读出的名称 / 版本 / 描述，补上第三节正文。
-5. 提交。
+GreasyFork 的「发布新脚本」页面提供两种方式：**粘贴代码** 与 **本地上传文件**。推荐本地上传。
+
+1. 打开 <https://greasyfork.org/zh-CN/users/sign_in>，用 GitHub 账号登录。
+2. 访问 <https://greasyfork.org/zh-CN/script_versions/new>（页面标题为「发布新脚本」）。
+3. 选择 **「上传文件」/「本地上传」**，选中：
+   ```
+   D:\dshilibiliilibili-dynamic-duration-filter.user.js
+   ```
+   或者选择「粘贴代码」，把该文件全文粘进去。
+4. GreasyFork 会自动解析 `// ==UserScript==` 元数据块，填好名称 / 版本 / 描述 / 匹配规则。核对一下：
+   - 名称：B站动态 · 视频时长筛选
+   - 版本：1.5.0
+   - `@match`：https://t.bilibili.com/*
+5. 在「附加信息」（Additional info）里贴入第三节的正文。
+6. 语言选「简体中文」，许可证选 MIT。
+7. 提交。
+
+> 若页面提示脚本已存在（同一 `@namespace` + `@name`），说明之前发布过，改走「上传新版本」流程即可。
 
 ## 五、以后更新版本
 
