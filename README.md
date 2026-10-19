@@ -87,6 +87,10 @@ node tools/screenshot.mjs   # 用本机 Chrome 无头验证并截图
 
 项目结构与实现说明见 [README.dev.md](README.dev.md)，完整实现契约见 [SPEC.md](SPEC.md)。
 
+## 致谢
+
+感谢**大肥鱼**的帮助。
+
 ## 许可证
 
 [MIT](LICENSE)
