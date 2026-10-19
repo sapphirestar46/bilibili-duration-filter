@@ -16,7 +16,7 @@ async function api() {
 describe('SPEC 3.3 parseDuration', () => {
   test('版本号与钩子齐全', async () => {
     const bddf = await api();
-    assert.equal(bddf.version, '1.5.0');
+    assert.equal(bddf.version, '1.6.0');
     for (const key of [
       'mount',
       'destroy',

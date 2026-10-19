@@ -2,7 +2,7 @@
 // @name         B站动态 · 视频时长筛选
 // @name:en      Bilibili Dynamic - Video Duration Filter
 // @namespace    https://github.com/sapphirestar46/bilibili-duration-filter
-// @version      1.5.0
+// @version      1.6.0
 // @description  在 B 站动态页「视频投稿」标签下注入双滑块时长筛选条，按视频时长区间过滤动态卡片
 // @description:en  Add a dual-range duration filter to Bilibili's dynamic (feed) page video tab.
 // @author       sapphirestar
@@ -26,7 +26,7 @@
   /* 常量                                                                */
   /* ================================================================== */
 
-  const VERSION = '1.5.0';
+  const VERSION = '1.6.0';
   const STYLE_ID = 'bddf-style';
   /** 滑块定义域上限：3 小时；到达右端表示「不限」 */
   const MAX_SEC = 10800;
@@ -34,9 +34,16 @@
   /** 双滑块最小间隔（秒），避免两端重合导致无法拖回 */
   const MIN_GAP = 1;
   const AUTOFILL_DELAY = 1200; // 自动加载每轮间隔（≥1200ms，勿低于此值）
-  /** 目标：凑够这么多条「可见视频」就停手，而不是固定轮数 */
+  /**
+   * 目标：凑够这么多条「可见视频」就停手。
+   * B 站动态接口默认 page_size 就是 20，所以这里对齐「一页」的观感：
+   * 当筛选条件很严（比如 ≥1 小时）导致整屏只剩一两条时，自动往下补到接近一页。
+   */
   const AUTOFILL_TARGET = 20;
+  /** 轮数硬上限：每次「补充」最多触发 20 轮 */
   const AUTOFILL_MAX_ROUNDS = 20;
+  /** 时间硬上限：从本轮补充开始计时，超过 30 秒无论如何都停 */
+  const AUTOFILL_MAX_DURATION = 30000;
   const PASS_DELAY = 40; // MutationObserver 合并窗口
 
   const PRESETS = [
@@ -79,6 +86,10 @@
   let passTimer = null;
   let autofillTimer = null;
   let autofillRounds = 0;
+  /** 连续多少轮没有加载出新内容（用于判断是否真的到底） */
+  let autofillStalls = 0;
+  /** 本轮补充的开始时间，0 表示当前没有进行中的补充 */
+  let autofillStartedAt = 0;
   let dragging = null; // 'min' | 'max' | null
   let scanQueued = false;
   let resizeObserver = null;
@@ -670,7 +681,11 @@
 
   function updateCount(visible, total) {
     if (!refs) return;
-    const text = '显示 ' + visible + ' / ' + total;
+    let text = '显示 ' + visible + ' / ' + total;
+    // 正在自动补足时给出明确提示，避免用户以为筛选卡住了
+    if (autofillRounds > 0 && visible < AUTOFILL_TARGET && !noMoreItems()) {
+      text += ' · 补充中';
+    }
     if (refs.count.textContent !== text) refs.count.textContent = text;
     if (barNode) {
       if (visible === 0) barNode.classList.add('bddf-empty');
@@ -785,6 +800,11 @@
     // 仅在「视频投稿」标签页启用：其它 tab 下不做任何主动滚动
     if (!isVideoTabActive()) return;
     if (noMoreItems()) return;
+    // 已经够数就没必要排队；否则会在「够数→排队→进来发现够数→返回」之间空转
+    if (visibleVideoCount() >= AUTOFILL_TARGET) return;
+    // 超出时间预算/轮数上限时不再排队
+    if (autofillStartedAt && Date.now() - autofillStartedAt > AUTOFILL_MAX_DURATION) return;
+    if (autofillRounds >= AUTOFILL_MAX_ROUNDS) return;
     autofillTimer = window.setTimeout(runAutofill, AUTOFILL_DELAY);
   }
 
@@ -841,43 +861,86 @@
     }
   }
 
+  /** 自动加载的硬性刹车：超过这个时长无论如何都停，防止无限跑 */
+  function autofillBudgetExceeded() {
+    if (!autofillStartedAt) return false;
+    if (Date.now() - autofillStartedAt <= AUTOFILL_MAX_DURATION) return false;
+    // 超时后彻底停手，并清零计数，等用户下次主动操作再重新开始
+    autofillRounds = 0;
+    autofillStalls = 0;
+    autofillStartedAt = 0;
+    clearAutofill();
+    return true;
+  }
+
   function runAutofill() {
     autofillTimer = null;
     if (destroyed) return;
     if (!state.enabled || !state.autofill) return;
     if (!isVideoTabActive()) return; // tab 已切走 → 立即停止
-    if (noMoreItems()) return;
-    if (document.hidden) {
-      scheduleAutofill();
+
+    // 硬性时间预算：无论还剩多少缺口，超时即停
+    if (autofillBudgetExceeded()) return;
+
+    // B 站默认一页 20 条动态；筛选后可见视频数远低于这个量时，说明"这一屏被筛空了"
+    if (visibleVideoCount() >= AUTOFILL_TARGET) {
+      autofillRounds = 0;
+      autofillStartedAt = 0;
       return;
     }
-    // 目标：凑够 AUTOFILL_TARGET 条可见视频（默认 20），而不是固定轮数
-    if (visibleVideoCount() >= AUTOFILL_TARGET) return;
-    if (autofillRounds >= AUTOFILL_MAX_ROUNDS) return;
+    if (noMoreItems()) return; // 确实到底了，再怎么滚也没有
+    if (document.hidden) {
+      // 页面在后台时不滚动；回到前台后由 visibilitychange 重新触发
+      return;
+    }
+    // 轮数上限
+    if (autofillRounds >= AUTOFILL_MAX_ROUNDS) {
+      autofillRounds = 0;
+      autofillStartedAt = 0;
+      return;
+    }
 
     const before = document.querySelectorAll('.bili-dyn-list__item').length;
 
     autofillRounds += 1;
+    // 第一轮时记录起始时间，用于时间预算判定
+    if (!autofillStartedAt) autofillStartedAt = Date.now();
     triggerLoadOnce();
 
-    // 若一轮下来列表没有增长（B 站没加载出来），停止，避免无意义的反复滚动
+    // 一轮之后按"实际新增了多少条"决定还要不要继续。
+    // 关键：这不是死板地数轮数，而是看这一轮有没有把列表撑大。
     window.setTimeout(function () {
       if (destroyed || !state.autofill || !state.enabled) return;
       if (!isVideoTabActive()) return;
+      if (autofillBudgetExceeded()) return;
+
       const after = document.querySelectorAll('.bili-dyn-list__item').length;
-      if (after <= before) {
-        // 没有新增：可能到底，也可能网络慢；再给一次机会后停手
-        if (noMoreItems()) return;
+      const grew = after - before;
+
+      if (grew <= 0) {
+        // 这一轮没加载出东西：可能是网络慢，也可能是到底了。
+        // 连续两次无增长才放弃，避免偶发慢请求让补充提前中断。
+        autofillStalls += 1;
+        if (autofillStalls >= 2 || noMoreItems()) {
+          autofillRounds = 0;
+          return;
+        }
         scheduleAutofill();
         return;
       }
-      scheduleAutofill();
+
+      autofillStalls = 0;
+      // 仍未凑够则继续补
+      if (visibleVideoCount() < AUTOFILL_TARGET) scheduleAutofill();
+      else autofillRounds = 0;
     }, AUTOFILL_DELAY);
   }
 
   /** 新一轮筛选 / 用户手动操作后重置自动加载计数 */
   function resetAutofill() {
     autofillRounds = 0;
+    autofillStalls = 0;
+    autofillStartedAt = 0;
     clearAutofill();
     scheduleAutofill();
   }
@@ -1146,6 +1209,13 @@
       };
       window.addEventListener('scroll', onViewportChange, { passive: true });
       window.addEventListener('resize', onViewportChange);
+
+      // 从后台切回前台时，若仍有缺口则恢复补充
+      document.addEventListener('visibilitychange', function () {
+        if (destroyed || document.hidden) return;
+        if (!state.enabled || !state.autofill) return;
+        if (visibleVideoCount() < AUTOFILL_TARGET) scheduleAutofill();
+      });
       if (typeof window.ResizeObserver === 'function') {
         try {
           var headerProbe = document.querySelector('.z-top-container, #bili-header-container');
